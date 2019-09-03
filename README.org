@@ -11,5 +11,5 @@ I'm able to test out with:
 #+begin_example
 rebar3 shell
 1> c(matrix).
-2> matrix:login_user("https://matrix.foo.bar", <<"userid">>, <<"pwd">>)
+2> matrix:login_user("https://matrix.foo.bar", <<"userid">>, <<"pwd">>).
 #+end_example
