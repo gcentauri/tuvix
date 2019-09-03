@@ -1,0 +1,14 @@
+{application, tuvix,
+ [{description, "An OTP Matrix client"},
+  {vsn, "0.1.0"},
+  {registered, []},
+  {applications,
+   [kernel,
+    stdlib
+   ]},
+  {env,[]},
+  {modules, []},
+
+  {licenses, ["GPL 3.0"]},
+  {links, []}
+ ]}.
