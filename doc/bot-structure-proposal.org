@@ -16,13 +16,13 @@
      - ~start(User,Passwd,Server,State)~: Spawns the bot actor, makes a
        connection to the ~Server~ with ~User~ and ~Passwd~, then spawns a Polling
        Process.  ~State~ can be any state useful to action handlers.
-     - ~add_action~(Bot,Name,Pred,Action)~: Registers a new message handler with
+     - ~add_action(Bot,Name,Pred,Action)~: Registers a new message handler with
        the ~Bot~. ~Pred~ should be a predicate on a *Message Type* and ~Action~
        should be a function that will perform some action with the message.
        Actions should be spawned in a new ephemeral process, and should be
        passed the bot processe's PID and STATE.
-     - ~update_state~(Bot,State)~: Updates the state of ~Bot~ with ~State~.
-     - ~drop_action~(Bot,Name)~: Drops an action named ~Name~ from the bot's
+     - ~update_state(Bot,State)~: Updates the state of ~Bot~ with ~State~.
+     - ~drop_action(Bot,Name)~: Drops an action named ~Name~ from the bot's
        message handlers.
      - ~get_state(Bot)~
      - ~new_messages(Messages)~: A list of new messages to handle from the
@@ -66,5 +66,19 @@
 
     #+end_src
 
+*** Sketch of the Bot Start 
 
+    #+begin_src erlang
+
+     start(User,Passwd,Server,State) ->
+        spawn(fun () -> 
+           case matrix:connect(User,Passwd,Server) of 
+               {ok, Token} -> spawn(bot:polling_process(self(),Token)),
+                              loop(State,[]);
+                _ -> handle_bad_connection_somehow()
+           end
+        end).
+        
+
+    #+end_src
 
