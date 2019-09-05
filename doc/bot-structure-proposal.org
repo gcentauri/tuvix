@@ -73,8 +73,8 @@
      start(User,Passwd,Server,State) ->
         spawn(fun () -> 
            case matrix:connect(User,Passwd,Server) of 
-               {ok, Token} -> spawn(bot:polling_process(self(),Token)),
-                              loop(State,[]);
+               {ok, Token} -> spawn(fun() -> bot:polling_process(self(),Token,Server,1000,60000)),
+                              bot:loop(State,[]);
                 _ -> handle_bad_connection_somehow()
            end
         end).
