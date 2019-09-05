@@ -1,0 +1,70 @@
+
+
+
+* A Possible Bot Architecture
+
+** Processes
+
+   We can distinguish /ephemeral/ processes from /persistent/ processes. The
+   first is spawned as a kind of worker or actor that must perform some short
+   sequence of tasks before dying. The latter is expected to loop indefinitely,
+   handling messages from the outside, or performing a periodic task.
+
+   + _Bot Actor Process_: A persistent process. Holds a matrix account connection
+     token, an arbitrary State variable, a list of message handlers, and supervises the
+     Polling Process. Its API might be.
+     - ~start(User,Passwd,Server,State)~: Spawns the bot actor, makes a
+       connection to the ~Server~ with ~User~ and ~Passwd~, then spawns a Polling
+       Process.  ~State~ can be any state useful to action handlers.
+     - ~add_action~(Bot,Name,Pred,Action)~: Registers a new message handler with
+       the ~Bot~. ~Pred~ should be a predicate on a *Message Type* and ~Action~
+       should be a function that will perform some action with the message.
+       Actions should be spawned in a new ephemeral process, and should be
+       passed the bot processe's PID and STATE.
+     - ~update_state~(Bot,State)~: Updates the state of ~Bot~ with ~State~.
+     - ~drop_action~(Bot,Name)~: Drops an action named ~Name~ from the bot's
+       message handlers.
+     - ~get_state(Bot)~
+     - ~new_messages(Messages)~: A list of new messages to handle from the
+       Polling Process.
+   + _Polling Process_ : A Persistent process. Holds the PID of the bot on whose
+     behalf this process is polling a matrix server for new messages. Holds a
+     session / client token and any other state needed to make requests. Holds a
+     poll interval, in milliseconds, specifying the wait time between polling.
+     The process's poll interval should be "dynamic" in that when a poll returns
+     no new messages, it should be lengthened to some maximum poll interval
+     gradually over time. When a new message is received, the poll interval
+     should be updated to the shortest poll interval once more.  Its API might be:
+     - ~start(Bot,Token,Url,MinInterval,MaxInterval)~
+     - ~stop(Bot)~: pass Bot PID in so that it can send a message to the bot
+       indicating it has stopped.
+
+*** Sketch of Bot Actor Loop
+
+    #+begin_src erlang 
+
+       loop(State,Actions) ->
+         receive 
+           {update_state, NewState} -> loop(NewState,Actions);
+           {add_action, Name, Pred, Action} -> loop(State, [{Name,Pred,Action} | Actions]);
+           {drop_action, Name} -> loop(State, lists:filter( ...); % filter Named action from Actions
+           {new_messages, Msgs} -> 
+               handler_loop(State,Actions,Msgs),
+               loop(State,Actions);
+           % more stuff ....
+         end.
+
+
+       handler_loop(State,Actions,[]) -> no_op;  % wer're done
+       handler_loop(State,Actions,[M|Msgs]) ->
+         case lists:filter(... filter Actions by those for which Pred(M) is true...) of
+           [] -> no_op;   % Or possibly you might want to not fail silently 
+           Handlers -> [spawn(fun() -> H(self(),State,M) end) || H <- Handlers]   % spawn process to run the handler.
+         end,
+         handler_loop(State,Actions,Msgs).
+      
+
+    #+end_src
+
+
+
