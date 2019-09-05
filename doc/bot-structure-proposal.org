@@ -25,7 +25,7 @@
      - ~drop_action(Bot,Name)~: Drops an action named ~Name~ from the bot's
        message handlers.
      - ~get_state(Bot)~
-     - ~new_messages(Messages)~: A list of new messages to handle from the
+     - ~new_messages(Bot,Messages)~: A list of new messages to handle from the
        Polling Process.
    + _Polling Process_ : A Persistent process. Holds the PID of the bot on whose
      behalf this process is polling a matrix server for new messages. Holds a
@@ -82,3 +82,20 @@
 
     #+end_src
 
+*** Sketch of the Polling Process Loop
+
+    #+begin_src erlang
+
+    loop(Bot,Token,Server,MinInterval,MaxInterval, CurrentInterval) ->
+      sleep(CurrentInterval),
+      case matrix:request_messages(Token,Server) of
+        {ok,Msgs} -> 
+            case json:parse(Msgs) of 
+              [] -> loop(Bot,Token,Server,MinInterval,MaxInterval, lengthen_interval(MaxInterval,CurrentInterval));
+              Msgs1 -> bot:new_messages(Bot,Msgs1),
+                       loop(Bot,Token,Server,MinInterval,MaxInterval, MinInterval)
+           end;
+        {err,Err} -> do_something_with_error()
+      end.
+
+    #+end_src
