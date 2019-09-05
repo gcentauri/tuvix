@@ -1,0 +1,22 @@
+* TODO Build application level client
+  - start a process that can respond to messages
+  - initializes with the homeserver
+  - logs in user and holds onto access token
+  - performs api requests
+
+** TODO Use Authorization header for token
+  Using a query string right now after following an example.
+  I'd like to modify the =post= function to use the token
+
+** TODO implement client sync request to poll for events
+
+   #+begin_quote
+   Retrieving timeline events, though, is a bit more complicated and is done using
+   a GET request on the /_matrix/client/r0/sync endpoint. Where it gets tricky is in
+   the fact that this endpoint isn’t specific to a room, so it returns every event
+   received in any room you’re in, along with some presence event, invites, etc.
+   #+end_quote
+
+* TODO Tuvix Roshambeaux
+  command for two users or you and Tuvix to play rock paper scissors
+
