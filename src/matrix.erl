@@ -1,6 +1,6 @@
 -module(matrix).
--export([login_user/3]).
--compile(export_all).
+-export([login/1]).
+%% -compile(export_all).
 
 %% everything in the matrix API is json
 %% strings must be UTF-8 so make sure your
@@ -14,18 +14,16 @@ post(Url, Map) ->
 
 %% returns a http response with a json body that
 %% includes the access token and other user details
-login_user(Homeserver, User, Pwd) ->
-    inets:start(),
-    ssl:start(),
-
+login(Creds) ->
+    {Homeserver, User, Pwd} = Creds,
     URL = Homeserver ++ "/_matrix/client/r0/login",
     ReqBody = #{
                 type => <<"m.login.password">>,
                 identifier => #{
                                 type => <<"m.id.user">>,
-                                user => User
+                                user => binary:list_to_bin(User)
                                },
-                password => Pwd
+                password => binary:list_to_bin(Pwd)
                },
 
     {ok, {{Version, 200, ReasonPhrase}, Headers, RespBody}} =
