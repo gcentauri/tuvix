@@ -4,12 +4,23 @@ A Matrix client in Erlang
 
 [[file:tuvix.jpg]]
 
-** Running with rebar
+** Running with rebar3
 
-I'm able to test out with:
+assuming you have rebar3 installed, you may want to
+
+#+begin_example
+rebar3 update
+rebar3 compile
+#+end_example
+
+before starting. it should install the =jsone= dependency.
+now that the tuvix app is setup properly, it seems
+like the following shell command will compile tuvix as well.
 
 #+begin_example
 rebar3 shell
-1> c(matrix).
-2> matrix:login_user("https://matrix.foo.bar", <<"userid">>, <<"pwd">>).
+1> Pid = tuvix:start().
+2> Resp = tuvix:login(Pid, {"https://matrix.foo.bar", "userid", "pwd"}).
 #+end_example
+
+This currently returns the raw json response from the login attempt.
