@@ -1,5 +1,5 @@
 -module(matrix).
--export([login/1]).
+-export([login/1, get_message_batch/2, sync_since/3, create_room/2]).
 %% -compile(export_all).
 
 %% everything in the matrix API is json
@@ -27,7 +27,7 @@ login(Creds) ->
                },
 
     case post(URL, ReqBody) of
-        {ok, {{Version, 200, ReasonPhrase}, Headers, RespBody}} ->
+        {ok, {{_Version, 200, _ReasonPhrase}, _Headers, RespBody}} ->
             {good, jsone:decode(list_to_binary(RespBody))};
         {ok, BadResponse} ->
             {bad, BadResponse};
@@ -38,7 +38,32 @@ login(Creds) ->
 %% returns map with room_id
 create_room(Homeserver, Token) ->
     Url = Homeserver ++ "/_matrix/client/r0/createRoom?access_token=" ++ Token,
-    {ok, {{Version, 200, ReasonPhrase}, Headers, RespBody}} =
+    {ok, {{_Version, 200, _ReasonPhrase}, _Headers, RespBody}} =
         post(Url, #{}),
     jsone:decode(list_to_binary(RespBody)).
+
+
+get_message_batch(Server,Token) ->
+    Url = Server ++ "/_matrix/client/r0/sync?access_token=" ++ Token,
+    case httpc:request(Url) of
+        {ok, {{_, 200, _}, _, Body}} ->
+            Decoded = jsone:decode(Body),
+            maps:get(<<"next_batch">>,Decoded, none);
+        _AnythingElse -> none
+    end.
+
+
+sync_since(Server,Token,Since) ->
+    %% TBD
+    {good, []}.
+
+    %% Url = string:join([Server, 
+    %%                    "/_matrix/client/r0/sync?access_token=",
+    %%                   Token,
+    %%                   "&since=", 
+    %%                    Since]),
+    %% case httpc:request(Url) of
+    %%     {ok, {{_, 200, _}, _, Body}} ->
+    %%         Decoded = jsone:decode(Body),
+    %%         maps:get
 
