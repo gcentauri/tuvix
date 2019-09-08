@@ -26,10 +26,13 @@ login(Creds) ->
                 password => binary:list_to_bin(Pwd)
                },
 
-    {ok, {{Version, 200, ReasonPhrase}, Headers, RespBody}} =
-        post(URL, ReqBody),
-
-    jsone:decode(list_to_binary(RespBody)).
+    case post(URL, ReqBody) of
+        {ok, {{Version, 200, ReasonPhrase}, Headers, RespBody}} ->
+            {good, jsone:decode(list_to_binary(RespBody))};
+        {ok, BadResponse} ->
+            {bad, BadResponse};
+        ErrorWithReason -> ErrorWithReason
+    end.
 
 %% Token should be a string, as it goes in a query param
 %% returns map with room_id
