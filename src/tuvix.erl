@@ -1,5 +1,5 @@
 -module(tuvix).
--export([start/3,start/2]).
+-export([start/3,start/4]).
 
 start(Server,User,Password) ->
     start(Server,User,Password, #{poll_min => 1000, poll_max => 60000}).
@@ -9,10 +9,14 @@ start(Server,User,Password,Config) ->
     ssl:start(),
     case matrix:login({Server,User,Password}) of
         {good, ResponseBody} ->
-            spawn(fun() -> start_loop(Token,Server,Config) end);
-        Any ->
-            Any
+            Token = binary:bin_to_list(maps:get(<<"access_token">>, ResponseBody)),
+            NewConfig = maps:merge(Config, #{server => Server, token => Token}),
+            {started, spawn(fun() -> start_loop(NewConfig) end)};
+        Any ->  Any
     end.
+
+start_loop(Config) ->
+    start_loop(maps:get(token,Config), maps:get(server,Config), Config).
 
 start_loop(Token,Server,Config) ->
     PollMin = maps:get(poll_min, Config, 500),
@@ -20,20 +24,27 @@ start_loop(Token,Server,Config) ->
                                       server => Server,
                                       token => Token,
                                       wait => PollMin}),
-    spawn(fun() -> initialize_polling_agent(PollConfig) end),
-    loop(null_state,[]).
+    {ok, _} = initialize_polling_agent(PollConfig),
+    BotState = #{ token => Token,
+                  server => Server
+                },
+    loop(BotState,[]).
 
-rpc(Pid, Request) ->
-    Pid ! {self(), Request},
-    receive
-        {Pid, Response} ->
-            Response
-    end.
 
 initialize_polling_agent(Config) ->
-    pollling_agent(Config).
+    case matrix:get_message_batch(maps:get(server), maps:get(token)) of
+        none ->
+            oh_no;
+        BatchToken ->
+            {ok, spawn(fun() ->
+                               polling_agent(maps:put(since,
+                                                      binary:bin_to_list(BatchToken),
+                                                      Config))
+                       end)}
+    end.
 
-pollling_agent(Config) ->
+
+polling_agent(Config) ->
     Wait = maps:get(wait,Config),
 
     timer:sleep(Wait),
@@ -46,21 +57,27 @@ pollling_agent(Config) ->
         {good, NewSince, []} ->
             PollMax = maps:get(poll_max, Config),
             NewConfig = maps:merge(Config, #{ wait => lengthen_wait(Wait, PollMax),
-                                              since => NewSince
-                                            }),
-            pollling_agent(NewConfig);
+                                              since => NewSince }),
+            polling_agent(NewConfig);
         {good, NewSince, Messages} ->
             new_messages(maps:get(bot,Config), Messages),
             PollMin = maps:get(poll_min, Config),
             NewConfig = maps:merge(Config, #{ wait =>shorten_wait(Wait,PollMin),
                                               since => NewSince}),
-            pollling_agent(NewConfig);
-        SomethingBad ->
+            polling_agent(NewConfig);
+        _SomethingBad ->
             io:format("Something Bad Happened while Polling....~n"),
-            pollling_agent(Config)
+            polling_agent(Config)
     end.
 
+lengthen_wait(Wait,MaxWait) ->
+    min(MaxWait, trunc(Wait + (MaxWait - Wait) / 2)).
 
+shorten_wait(Wait, MinWait) ->
+    max(MinWait, trunc(Wait - (Wait - MinWait) / 2)).
+
+new_messages(Bot, Messages) ->
+    Bot ! {new_messages, Messages}.
 
 loop(State,Actions) ->
     receive
@@ -80,6 +97,19 @@ loop(State,Actions) ->
             From ! {error, request_unknown, Other},
             loop(State,Actions)
     end.
+
+
+handle_messages(_State,_Actions,[]) -> no_op;
+handle_messages(State,Actions,[M|Msgs]) ->
+    Bot = self(),
+    lists:foreach(fun({_,Pred,Action}) ->
+                          case Pred(M) of
+                              true ->
+                                  spawn(fun() -> Action(Bot,State,M) end);
+                              _ -> no_op
+                          end
+                  end),
+    handle_messages(State,Actions,Msgs).
 
 
 remove_action_by_name(Name,Actions) ->
