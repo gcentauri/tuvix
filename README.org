@@ -1,12 +1,12 @@
 * tuvix
 
-A Matrix client in Erlang
+A bot for Matrix written in Erlang
 
 [[file:tuvix.jpg]]
 
 ** Running with rebar3
 
-assuming you have rebar3 installed, you may want to
+assuming you have [[https://www.rebar3.org/][rebar3]] installed, you may want to:
 
 #+begin_example
 rebar3 update
