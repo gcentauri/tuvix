@@ -36,12 +36,25 @@ initialize_polling_agent(Config) ->
         none ->
             oh_no;
         BatchToken ->
-            {ok, spawn(fun() ->
-                               polling_agent(maps:put(since,
-                                                      binary:bin_to_list(BatchToken),
-                                                      Config))
-                       end)}
+            {ok, spawn(
+                   fun() ->
+                           polling_agent(maps:put(since,
+                                                  binary:bin_to_list(BatchToken),
+                                                  Config))
+                   end)}
     end.
+
+new_messages(Bot, Messages) ->
+    Formatted = lists:filter(
+                  fun(Msg) ->
+                          case maps:get(<<"content">>, Msg, none) of
+                              none -> false;
+                              Content ->
+                                  maps:get(<<"type">>, Content) =:= <<"m.text">>
+                          end
+                  end, Messages),
+    Bot ! {new_messages, Formatted}.
+
 
 
 polling_agent(Config) ->
@@ -62,7 +75,7 @@ polling_agent(Config) ->
         {good, NewSince, Messages} ->
             new_messages(maps:get(bot,Config), Messages),
             PollMin = maps:get(poll_min, Config),
-            NewConfig = maps:merge(Config, #{ wait =>shorten_wait(Wait,PollMin),
+            NewConfig = maps:merge(Config, #{ wait => PollMin,
                                               since => NewSince}),
             polling_agent(NewConfig);
         _SomethingBad ->
@@ -73,14 +86,13 @@ polling_agent(Config) ->
 lengthen_wait(Wait,MaxWait) ->
     min(MaxWait, trunc(Wait + (MaxWait - Wait) / 2)).
 
-shorten_wait(Wait, MinWait) ->
-    max(MinWait, trunc(Wait - (Wait - MinWait) / 2)).
-
 new_messages(Bot, Messages) ->
     Bot ! {new_messages, Messages}.
 
 loop(State,Actions) ->
     receive
+        {update_state , Key , Val} ->
+            loop(maps:put(Key,Val,State), Actions);
         {update_state, NewState} ->
             loop(NewState,Actions);
         {get_state, Caller} ->
@@ -108,7 +120,7 @@ handle_messages(State,Actions,[M|Msgs]) ->
                                   spawn(fun() -> Action(Bot,State,M) end);
                               _ -> no_op
                           end
-                  end),
+                  end, Actions),
     handle_messages(State,Actions,Msgs).
 
 

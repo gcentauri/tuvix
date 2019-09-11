@@ -43,6 +43,8 @@ create_room(Homeserver, Token) ->
     jsone:decode(list_to_binary(RespBody)).
 
 
+
+
 get_message_batch(Server,Token) ->
     Url = Server ++ "/_matrix/client/r0/sync?access_token=" ++ Token,
     case httpc:request(Url) of
@@ -54,16 +56,24 @@ get_message_batch(Server,Token) ->
 
 
 sync_since(Server,Token,Since) ->
-    %% TBD
-    {good, []}.
+    Url = string:join([Server, 
+                       "/_matrix/client/r0/sync?access_token=",
+                      Token,
+                      "&since=", 
+                       Since,
+                      "&full_state=false"]),
+    case httpc:request(Url) of
+        {ok, {{_, 200, _}, _, Body}} ->
+            Decoded = jsone:decode(Body),
+            {good, 
+             maps:get(<<"next_batch">>, Decoded),
+             pluck_messages(Decoded)};
+        _ -> {bad, oops}
+    end.
 
-    %% Url = string:join([Server, 
-    %%                    "/_matrix/client/r0/sync?access_token=",
-    %%                   Token,
-    %%                   "&since=", 
-    %%                    Since]),
-    %% case httpc:request(Url) of
-    %%     {ok, {{_, 200, _}, _, Body}} ->
-    %%         Decoded = jsone:decode(Body),
-    %%         maps:get
+pluck_messages(JSON) ->
+    Rooms = maps:get(<<"rooms">>, JSON),
+    Join = maps:get(<<"join">>, Rooms),
+    Timeline = maps:get(<<"timeline">>, Join),
+    maps:get(<<"events">>, Timeline).
 
