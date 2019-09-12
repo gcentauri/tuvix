@@ -32,7 +32,7 @@ start_loop(Token,Server,Config) ->
 
 
 initialize_polling_agent(Config) ->
-    case matrix:get_message_batch(maps:get(server), maps:get(token)) of
+    case matrix:get_message_batch(maps:get(server, Config), maps:get(token, Config)) of
         none ->
             oh_no;
         BatchToken ->
@@ -50,7 +50,7 @@ new_messages(Bot, Messages) ->
                           case maps:get(<<"content">>, Msg, none) of
                               none -> false;
                               Content ->
-                                  maps:get(<<"type">>, Content) =:= <<"m.text">>
+                                  maps:get(<<"msgtype">>, Content) =:= <<"m.text">>
                           end
                   end, Messages),
     Bot ! {new_messages, Formatted}.
@@ -85,9 +85,6 @@ polling_agent(Config) ->
 
 lengthen_wait(Wait,MaxWait) ->
     min(MaxWait, trunc(Wait + (MaxWait - Wait) / 2)).
-
-new_messages(Bot, Messages) ->
-    Bot ! {new_messages, Messages}.
 
 loop(State,Actions) ->
     receive

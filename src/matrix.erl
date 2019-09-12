@@ -42,30 +42,31 @@ create_room(Homeserver, Token) ->
         post(Url, #{}),
     jsone:decode(list_to_binary(RespBody)).
 
-
-
-
 get_message_batch(Server,Token) ->
     Url = Server ++ "/_matrix/client/r0/sync?access_token=" ++ Token,
     case httpc:request(Url) of
         {ok, {{_, 200, _}, _, Body}} ->
-            Decoded = jsone:decode(Body),
+            Decoded = jsone:decode(list_to_binary(Body)),
             maps:get(<<"next_batch">>,Decoded, none);
         _AnythingElse -> none
     end.
 
-
 sync_since(Server,Token,Since) ->
-    Url = string:join([Server, 
-                       "/_matrix/client/r0/sync?access_token=",
-                      Token,
-                      "&since=", 
-                       Since,
-                      "&full_state=false"]),
+    Url = unicode:characters_to_list(
+            [
+             Server,
+             "/_matrix/client/r0/sync?access_token=",
+             Token,
+             "&since=",
+             Since,
+             "&full_state=false"
+            ]
+           ),
     case httpc:request(Url) of
         {ok, {{_, 200, _}, _, Body}} ->
-            Decoded = jsone:decode(Body),
-            {good, 
+            io:format(Body),
+            Decoded = jsone:decode(list_to_binary(Body)),
+            {good,
              maps:get(<<"next_batch">>, Decoded),
              pluck_messages(Decoded)};
         _ -> {bad, oops}
@@ -73,7 +74,10 @@ sync_since(Server,Token,Since) ->
 
 pluck_messages(JSON) ->
     Rooms = maps:get(<<"rooms">>, JSON),
-    Join = maps:get(<<"join">>, Rooms),
-    Timeline = maps:get(<<"timeline">>, Join),
-    maps:get(<<"events">>, Timeline).
+    Join = maps:get(<<"join">>, Rooms, #{}),
+    %% TODO: Join is a map with keys that are room ids. probably iterate over all
+    %% this hardcodes the matrix bot dev room
+    MBotDev = maps:get(<<"!TBaDphVIRUZQyIfJfB:matrix.hrlo.world">>, Join, #{}),
+    Timeline = maps:get(<<"timeline">>, MBotDev, #{}),
+    maps:get(<<"events">>, Timeline, []).
 
