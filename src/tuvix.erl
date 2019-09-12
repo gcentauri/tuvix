@@ -86,8 +86,19 @@ polling_agent(Config) ->
 lengthen_wait(Wait,MaxWait) ->
     min(MaxWait, trunc(Wait + (MaxWait - Wait) / 2)).
 
+request_txn_id(Bot) ->
+    Bot ! {get_txn_id, self()},
+    receive
+        {txn_id, TxnId} ->
+            TxnId
+    end.
+
 loop(State,Actions) ->
     receive
+        {get_txn_id, Caller} ->
+            TxnId =  maps:get(txn_id, State, 1),
+            Caller ! {txn_id, TxnId},
+            loop(maps:put(txn_id, 1 + TxnId, State), Actions);
         {update_state , Key , Val} ->
             loop(maps:put(Key,Val,State), Actions);
         {update_state, NewState} ->

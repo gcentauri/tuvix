@@ -46,6 +46,27 @@ create_room(Homeserver, Token) ->
 get_with_auth(Url,Token) ->
     httpc:request(get, {Url, [{"Authorization", "Bearer " ++ Token}]},[],[]).
 
+put_with_auth(Url,Token,BodyMap) ->
+    Body = jsone:encode(BodyMap),
+    httpc:request(put,
+                  {Url,[{"Authorization", "Bearer " ++ Token}], "application/json", Body},
+                  [],
+                  []).
+
+put_text_message(Server,Token,Room,Message,TxnId) ->
+    Url = Server
+        ++ "_matrix/client/r0/rooms/"
+        ++ Room
+        ++ "/send/m.room.message/"
+        ++ lists:flatten(io_lib:format("~p", [TxnId])),
+
+    Body = #{ <<"msgtype">> => <<"m.text">>,
+              <<"body">> => binary:list_to_binary(Message)
+            },
+
+    put_with_auth(Url,Token,Body).
+
+
 get_message_batch(Server,Token) ->
     Url = Server ++ "/_matrix/client/r0/sync",
     case get_with_auth(Url, Token) of
