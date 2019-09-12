@@ -42,9 +42,13 @@ create_room(Homeserver, Token) ->
         post(Url, #{}),
     jsone:decode(list_to_binary(RespBody)).
 
+
+get_with_auth(Url,Token) ->
+    httpc:request(get, {Url, [{"Authorization", "Bearer " ++ Token}]},[],[]).
+
 get_message_batch(Server,Token) ->
-    Url = Server ++ "/_matrix/client/r0/sync?access_token=" ++ Token,
-    case httpc:request(Url) of
+    Url = Server ++ "/_matrix/client/r0/sync",
+    case get_with_auth(Url, Token) of
         {ok, {{_, 200, _}, _, Body}} ->
             Decoded = jsone:decode(list_to_binary(Body)),
             maps:get(<<"next_batch">>,Decoded, none);
@@ -55,14 +59,12 @@ sync_since(Server,Token,Since) ->
     Url = unicode:characters_to_list(
             [
              Server,
-             "/_matrix/client/r0/sync?access_token=",
-             Token,
-             "&since=",
+             "/_matrix/client/r0/sync?&since=",
              Since,
              "&full_state=false"
             ]
            ),
-    case httpc:request(Url) of
+    case get_with_auth(Url, Token) of
         {ok, {{_, 200, _}, _, Body}} ->
             io:format(Body),
             Decoded = jsone:decode(list_to_binary(Body)),
