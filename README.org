@@ -6,7 +6,8 @@ A bot for Matrix written in Erlang
 
 ** Running with rebar3
 
-assuming you have [[https://www.rebar3.org/][rebar3]] installed and configured to use Hex.pm, you may want to:
+assuming you have [[https://www.rebar3.org/][rebar3]] installed 
+and configured to use [[https://hex.pm/docs/rebar3_usage][Hex.pm]], you may want to:
 
 #+begin_example
 rebar3 update
