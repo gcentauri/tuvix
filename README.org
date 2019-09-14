@@ -23,5 +23,5 @@ rebar3 shell
 1> Pid = tuvix:start("https://matrix.foo.bar", "userid", "pwd").
 #+end_example
 
-This will spawn a process that logs in and begins polling for
-events in the Matrix bot dev chat room
+Tuvix will echo any message with @tuvix in it in the matrix dev
+bot room.

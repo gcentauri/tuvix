@@ -137,11 +137,29 @@ remove_action_by_name(Name,Actions) ->
                    end,
     lists:filter(FilterByName, Actions).
 
+%% {\"events\": [{\"type\": \"m.room.message\", \"sender\": \"@shoshin:matrix.hrlo.world\", \"content\": {\"msgtype\": \"m.text\", \"body\": \"HEY TUVIX!!! ITS CHAKOTAY!!! CAN YOU HEAR ME!!!????\"}, \"origin_server_ts\": 1568258310194, \"unsigned\": {\"age\": 18603}, \"event_id\": \"$DdHy9qbVN6Fqw-uQzrs8nbef-oF_2iDeW8bR0wYteJw\"}]
+
+parse_message(Msg) ->
+    Sender = maps:get(<<"sender">>, Msg),
+    Content = maps:get(<<"content">>, Msg),
+    Text = maps:get(<<"body">>, Content),
+    {Sender,Text}.
+
 echo(Bot,State,Msg) ->
     Server = maps:get(server, State),
     Token = maps:get(token, State),
     Room = "!TBaDphVIRUZQyIfJfB:matrix.hrlo.world",
     TxnId = request_txn_id(Bot),
-    Content = maps:get(<<"content">>, Msg),
-    Text = maps:get(<<"body">>, Content),
-    matrix:put_text_message(Server,Token,Room,Text,TxnId).
+    {Sender, Text} = parse_message(Msg),
+    Words = re:split(Text, " "),
+    Notice = lists:any(fun(S) -> <<"@tuvix">> =:= S end, Words),
+    if
+        Notice ->
+            case Sender of
+                <<"@hrlobot1:matrix.hrlo.world">> -> no_op;
+                _ -> matrix:put_text_message(Server,Token,Room,Text,TxnId)
+            end;
+        true ->
+            nothing
+    end.
+

@@ -48,6 +48,8 @@ get_with_auth(Url,Token) ->
 
 put_with_auth(Url,Token,BodyMap) ->
     Body = jsone:encode(BodyMap),
+    %% 200 - body with "{event_id: xxx}"
+    %% 429 - body with "{errcode: M_???, error: String, retry_after_ms: Int}"
     httpc:request(put,
                   {Url,[{"Authorization", "Bearer " ++ Token}], "application/json", Body},
                   [],
