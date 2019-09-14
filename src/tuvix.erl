@@ -1,5 +1,5 @@
 -module(tuvix).
--export([start/3,start/4]).
+-export([start/3,start/4,echo/3]).
 
 start(Server,User,Password) ->
     start(Server,User,Password, #{poll_min => 1000, poll_max => 60000}).
@@ -28,8 +28,8 @@ start_loop(Token,Server,Config) ->
     BotState = #{ token => Token,
                   server => Server
                 },
-    loop(BotState,[]).
-
+    Actions = [{"echo", fun(_X) -> true end, fun(A,B,C) -> echo(A,B,C) end}],
+    loop(BotState,Actions).
 
 initialize_polling_agent(Config) ->
     case matrix:get_message_batch(maps:get(server, Config), maps:get(token, Config)) of
@@ -54,8 +54,6 @@ new_messages(Bot, Messages) ->
                           end
                   end, Messages),
     Bot ! {new_messages, Formatted}.
-
-
 
 polling_agent(Config) ->
     Wait = maps:get(wait,Config),
@@ -118,7 +116,6 @@ loop(State,Actions) ->
             loop(State,Actions)
     end.
 
-
 handle_messages(_State,_Actions,[]) -> no_op;
 handle_messages(State,Actions,[M|Msgs]) ->
     Bot = self(),
@@ -131,7 +128,6 @@ handle_messages(State,Actions,[M|Msgs]) ->
                   end, Actions),
     handle_messages(State,Actions,Msgs).
 
-
 remove_action_by_name(Name,Actions) ->
     FilterByName = fun(X) ->
                            case X of
@@ -140,3 +136,12 @@ remove_action_by_name(Name,Actions) ->
                            end
                    end,
     lists:filter(FilterByName, Actions).
+
+echo(Bot,State,Msg) ->
+    Server = maps:get(server, State),
+    Token = maps:get(token, State),
+    Room = "!TBaDphVIRUZQyIfJfB:matrix.hrlo.world",
+    TxnId = request_txn_id(Bot),
+    Content = maps:get(<<"content">>, Msg),
+    Text = maps:get(<<"body">>, Content),
+    matrix:put_text_message(Server,Token,Room,Text,TxnId).

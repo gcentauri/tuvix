@@ -1,5 +1,5 @@
 -module(matrix).
--export([login/1, get_message_batch/2, sync_since/3, create_room/2]).
+-export([login/1, get_message_batch/2, sync_since/3, create_room/2, put_text_message/5]).
 %% -compile(export_all).
 
 %% everything in the matrix API is json
@@ -55,13 +55,13 @@ put_with_auth(Url,Token,BodyMap) ->
 
 put_text_message(Server,Token,Room,Message,TxnId) ->
     Url = Server
-        ++ "_matrix/client/r0/rooms/"
+        ++ "/_matrix/client/r0/rooms/"
         ++ Room
         ++ "/send/m.room.message/"
         ++ lists:flatten(io_lib:format("~p", [TxnId])),
 
     Body = #{ <<"msgtype">> => <<"m.text">>,
-              <<"body">> => binary:list_to_binary(Message)
+              <<"body">> => Message
             },
 
     put_with_auth(Url,Token,Body).
@@ -87,7 +87,7 @@ sync_since(Server,Token,Since) ->
            ),
     case get_with_auth(Url, Token) of
         {ok, {{_, 200, _}, _, Body}} ->
-            io:format(Body),
+            %% io:format(Body),
             Decoded = jsone:decode(list_to_binary(Body)),
             {good,
              maps:get(<<"next_batch">>, Decoded),
