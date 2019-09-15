@@ -1,5 +1,5 @@
 -module(matrix).
--export([login/1, get_message_batch/2, sync_since/3, create_room/2]).
+-export([login/1, get_message_batch/2, sync_since/3, create_room/2, put_text_message/5]).
 %% -compile(export_all).
 
 %% everything in the matrix API is json
@@ -16,7 +16,7 @@ post(Url, Map) ->
 %% includes the access token and other user details
 login(Creds) ->
     {Homeserver, User, Pwd} = Creds,
-    URL = Homeserver ++ "/_matrix/client/r0/login",
+    URL = "https://" ++ Homeserver ++ "/_matrix/client/r0/login",
     ReqBody = #{
                 type => <<"m.login.password">>,
                 identifier => #{
@@ -37,7 +37,7 @@ login(Creds) ->
 %% Token should be a string, as it goes in a query param
 %% returns map with room_id
 create_room(Homeserver, Token) ->
-    Url = Homeserver ++ "/_matrix/client/r0/createRoom?access_token=" ++ Token,
+    Url = "https://" ++ Homeserver ++ "/_matrix/client/r0/createRoom?access_token=" ++ Token,
     {ok, {{_Version, 200, _ReasonPhrase}, _Headers, RespBody}} =
         post(Url, #{}),
     jsone:decode(list_to_binary(RespBody)).
@@ -46,8 +46,31 @@ create_room(Homeserver, Token) ->
 get_with_auth(Url,Token) ->
     httpc:request(get, {Url, [{"Authorization", "Bearer " ++ Token}]},[],[]).
 
+put_with_auth(Url,Token,BodyMap) ->
+    Body = jsone:encode(BodyMap),
+    %% 200 - body with "{event_id: xxx}"
+    %% 429 - body with "{errcode: M_???, error: String, retry_after_ms: Int}"
+    httpc:request(put,
+                  {Url,[{"Authorization", "Bearer " ++ Token}], "application/json", Body},
+                  [],
+                  []).
+
+put_text_message(Server,Token,Room,Message,TxnId) ->
+    Url = "https://" ++ Server
+        ++ "/_matrix/client/r0/rooms/"
+        ++ Room
+        ++ "/send/m.room.message/"
+        ++ lists:flatten(io_lib:format("~p", [TxnId])),
+
+    Body = #{ <<"msgtype">> => <<"m.text">>,
+              <<"body">> => Message
+            },
+
+    put_with_auth(Url,Token,Body).
+
+
 get_message_batch(Server,Token) ->
-    Url = Server ++ "/_matrix/client/r0/sync",
+    Url = "https://" ++ Server ++ "/_matrix/client/r0/sync",
     case get_with_auth(Url, Token) of
         {ok, {{_, 200, _}, _, Body}} ->
             Decoded = jsone:decode(list_to_binary(Body)),
@@ -58,6 +81,7 @@ get_message_batch(Server,Token) ->
 sync_since(Server,Token,Since) ->
     Url = unicode:characters_to_list(
             [
+             "https://",
              Server,
              "/_matrix/client/r0/sync?&since=",
              Since,
@@ -66,7 +90,7 @@ sync_since(Server,Token,Since) ->
            ),
     case get_with_auth(Url, Token) of
         {ok, {{_, 200, _}, _, Body}} ->
-            io:format(Body),
+            %% io:format(Body),
             Decoded = jsone:decode(list_to_binary(Body)),
             {good,
              maps:get(<<"next_batch">>, Decoded),

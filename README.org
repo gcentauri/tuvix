@@ -18,10 +18,13 @@ before starting. it should install the =jsone= dependency.
 now that the tuvix app is setup properly, it seems
 like the following shell command will compile tuvix as well.
 
+Initialize the Tuvix bot with your homeserver, its user name
+and password.
+
 #+begin_example
 rebar3 shell
-1> Pid = tuvix:start("https://matrix.foo.bar", "userid", "pwd").
+1> Pid = tuvix:start("matrix.foo.bar", "userid", "pwd").
 #+end_example
 
-This will spawn a process that logs in and begins polling for
-events in the Matrix bot dev chat room
+Tuvix will echo any message with @tuvix in it in the matrix dev
+bot room.
