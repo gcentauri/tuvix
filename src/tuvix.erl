@@ -1,6 +1,7 @@
 -module(tuvix).
 -export([start/3,start/4,echo/3]).
 
+%% Server - homeserver matrix.yada.yada
 start(Server,User,Password) ->
     start(Server,User,Password, #{poll_min => 1000, poll_max => 60000}).
 
@@ -10,22 +11,23 @@ start(Server,User,Password,Config) ->
     case matrix:login({Server,User,Password}) of
         {good, ResponseBody} ->
             Token = binary:bin_to_list(maps:get(<<"access_token">>, ResponseBody)),
-            NewConfig = maps:merge(Config, #{server => Server, token => Token}),
+            NewConfig = maps:merge(Config, #{server => Server, token => Token, user => User}),
             {started, spawn(fun() -> start_loop(NewConfig) end)};
         Any ->  Any
     end.
 
 start_loop(Config) ->
-    start_loop(maps:get(token,Config), maps:get(server,Config), Config).
+    start_loop(maps:get(user,Config), maps:get(token,Config), maps:get(server,Config), Config).
 
-start_loop(Token,Server,Config) ->
+start_loop(User,Token,Server,Config) ->
     PollMin = maps:get(poll_min, Config, 500),
     PollConfig = maps:merge(Config, #{bot => self(),
                                       server => Server,
                                       token => Token,
                                       wait => PollMin}),
     {ok, _} = initialize_polling_agent(PollConfig),
-    BotState = #{ token => Token,
+    BotState = #{ user => list_to_binary( "@" ++ User ++ ":" ++ Server),
+                  token => Token,
                   server => Server
                 },
     Actions = [{"echo", fun(_X) -> true end, fun(A,B,C) -> echo(A,B,C) end}],
@@ -146,20 +148,23 @@ parse_message(Msg) ->
     {Sender,Text}.
 
 echo(Bot,State,Msg) ->
+    User = maps:get(user, State),
     Server = maps:get(server, State),
     Token = maps:get(token, State),
     Room = "!TBaDphVIRUZQyIfJfB:matrix.hrlo.world",
     TxnId = request_txn_id(Bot),
     {Sender, Text} = parse_message(Msg),
-    Words = re:split(Text, " "),
-    Notice = lists:any(fun(S) -> <<"@tuvix">> =:= S end, Words),
+    Notice = is_mention(Text),
     if
         Notice ->
             case Sender of
-                <<"@hrlobot1:matrix.hrlo.world">> -> no_op;
+                User -> no_op;
                 _ -> matrix:put_text_message(Server,Token,Room,Text,TxnId)
             end;
         true ->
             nothing
     end.
 
+is_mention(Msg) ->
+    Words = re:split(Msg, " "),
+    lists:any(fun(S) -> <<"@tuvix">> =:= S end, Words).
