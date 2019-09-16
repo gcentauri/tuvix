@@ -1,49 +1,88 @@
 -module(tuvix).
--export([start/3,start/4,echo/3]).
+-export([init/0,start/0]).
 
-%% Server - homeserver matrix.yada.yada
-start(Server,User,Password) ->
-    start(Server,User,Password, #{poll_min => 1000, poll_max => 60000}).
+-record(config,
+        {bot,
+         server,
+         user,
+         since,
+         wait,
+         token,
+         poll_min = 1000,
+         poll_max = 60000
+        }).
+-record(bot_state,
+        {user,
+         server,
+         token,
+         txn_id = 1
+        }).
 
-start(Server,User,Password,Config) ->
-    inets:start(),
-    ssl:start(),
-    case matrix:login({Server,User,Password}) of
-        {good, ResponseBody} ->
-            Token = binary:bin_to_list(maps:get(<<"access_token">>, ResponseBody)),
-            NewConfig = maps:merge(Config, #{server => Server, token => Token, user => User}),
-            {started, spawn(fun() -> start_loop(NewConfig) end)};
-        Any ->  Any
+%% put a file called tuvix.config in the tuvix root directory
+%% it has a structure of {user, server, token}.
+init() ->
+    case file:consult("tuvix.config") of
+        {ok, [Term]} ->
+            {User, Server, Token} = Term,
+            {ok, #config{user=User,server=Server,token=Token}};
+        Any ->
+            bad_times
     end.
 
-start_loop(Config) ->
-    start_loop(maps:get(user,Config), maps:get(token,Config), maps:get(server,Config), Config).
+start() ->
+    case init() of
+        {ok, Config} ->
+            start(Config);
+        bad_times ->
+            io:format("you've got a bad config")
+    end.
 
-start_loop(User,Token,Server,Config) ->
-    PollMin = maps:get(poll_min, Config, 500),
-    PollConfig = maps:merge(Config, #{bot => self(),
-                                      server => Server,
-                                      token => Token,
-                                      wait => PollMin}),
+start(Cfg) when is_record(Cfg, config) ->
+    inets:start(),
+    ssl:start(),
+    {started, spawn(fun() -> start_loop(Cfg) end)}.
+
+%% rewrite this to produce a config if someone wants to log in this way
+%% start(Server,User,Password) ->
+%%     start(Server,User,Password, #{poll_min => 1000, poll_max => 60000}).
+
+%% start(Server,User,Password,Config) ->
+%%     inets:start(),
+%%     ssl:start(),
+%%     case matrix:login({Server,User,Password}) of
+%%         {good, ResponseBody} ->
+%%             Token = binary:bin_to_list(maps:get(<<"access_token">>, ResponseBody)),
+%%             NewConfig = maps:merge(Config, #{server => Server, token => Token, user => User}),
+%%             {started, spawn(fun() -> start_loop(NewConfig) end)};
+%%         Any ->  Any
+%%     end.
+
+start_loop(Config) ->
+    start_loop(Config, Config).
+
+start_loop(#config{user=User, token=Token,
+                   server=Server, poll_min=PollMin},
+           Config) ->
+    PollConfig = Config#config{bot = self(), server = Server,
+                               token = Token, wait = PollMin},
     {ok, _} = initialize_polling_agent(PollConfig),
-    BotState = #{ user => list_to_binary( "@" ++ User ++ ":" ++ Server),
-                  token => Token,
-                  server => Server
-                },
+    BotState = #bot_state{user = list_to_binary( "@" ++ User ++ ":" ++ Server),
+                          token = Token, server = Server},
     Actions = [{"echo", fun(_X) -> true end, fun(A,B,C) -> echo(A,B,C) end}],
     loop(BotState,Actions).
 
-initialize_polling_agent(Config) ->
-    case matrix:get_message_batch(maps:get(server, Config), maps:get(token, Config)) of
+initialize_polling_agent(Cfg) ->
+    case matrix:get_message_batch(Cfg#config.server, Cfg#config.token) of
         none ->
             oh_no;
         BatchToken ->
-            {ok, spawn(
-                   fun() ->
-                           polling_agent(maps:put(since,
-                                                  binary:bin_to_list(BatchToken),
-                                                  Config))
-                   end)}
+            {ok,
+             spawn(
+                 fun() ->
+                     polling_agent(Cfg#config{since = binary:bin_to_list(BatchToken)})
+                 end
+              )
+            }
     end.
 
 new_messages(Bot, Messages) ->
@@ -58,25 +97,23 @@ new_messages(Bot, Messages) ->
     Bot ! {new_messages, Formatted}.
 
 polling_agent(Config) ->
-    Wait = maps:get(wait,Config),
-
+    Wait = Config#config.wait,
     timer:sleep(Wait),
 
-    Token = maps:get(token,Config),
-    Server = maps:get(server,Config),
-    Since = maps:get(since,Config),
+    Token = Config#config.token,
+    Server = Config#config.server,
+    Since = Config#config.since,
 
     case matrix:sync_since(Server, Token, Since) of
         {good, NewSince, []} ->
-            PollMax = maps:get(poll_max, Config),
-            NewConfig = maps:merge(Config, #{ wait => lengthen_wait(Wait, PollMax),
-                                              since => NewSince }),
+            PollMax = Config#config.poll_max,
+            NewConfig = Config#config{wait = lengthen_wait(Wait, PollMax),
+                                      since = NewSince},
             polling_agent(NewConfig);
         {good, NewSince, Messages} ->
-            new_messages(maps:get(bot,Config), Messages),
-            PollMin = maps:get(poll_min, Config),
-            NewConfig = maps:merge(Config, #{ wait => PollMin,
-                                              since => NewSince}),
+            new_messages(Config#config.bot, Messages),
+            PollMin = Config#config.poll_min,
+            NewConfig = Config#config{wait = PollMin, since = NewSince},
             polling_agent(NewConfig);
         _SomethingBad ->
             io:format("Something Bad Happened while Polling....~n"),
@@ -96,11 +133,11 @@ request_txn_id(Bot) ->
 loop(State,Actions) ->
     receive
         {get_txn_id, Caller} ->
-            TxnId =  maps:get(txn_id, State, 1),
+            TxnId =  State#bot_state.txn_id,
             Caller ! {txn_id, TxnId},
-            loop(maps:put(txn_id, 1 + TxnId, State), Actions);
-        {update_state , Key , Val} ->
-            loop(maps:put(Key,Val,State), Actions);
+            loop(State#bot_state{txn_id = 1 + TxnId}, Actions);
+        %% {update_state , Key , Val} ->
+            %% loop(State#bot_state{Key = Val}, Actions);
         {update_state, NewState} ->
             loop(NewState,Actions);
         {get_state, Caller} ->
@@ -148,9 +185,9 @@ parse_message(Msg) ->
     {Sender,Text}.
 
 echo(Bot,State,Msg) ->
-    User = maps:get(user, State),
-    Server = maps:get(server, State),
-    Token = maps:get(token, State),
+    User = State#bot_state.user,
+    Server = State#bot_state.server,
+    Token = State#bot_state.token,
     Room = "!TBaDphVIRUZQyIfJfB:matrix.hrlo.world",
     TxnId = request_txn_id(Bot),
     {Sender, Text} = parse_message(Msg),
