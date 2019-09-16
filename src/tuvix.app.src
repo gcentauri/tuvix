@@ -1,10 +1,12 @@
 {application, tuvix,
- [{description, "An OTP Matrix client"},
+ [{description, "An OTP Matrix bot client"},
   {vsn, "0.1.0"},
   {registered, []},
   {applications,
    [kernel,
-    stdlib
+    stdlib,
+    inets,
+    ssl
    ]},
   {env,[]},
   {modules, []},
